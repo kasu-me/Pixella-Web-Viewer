@@ -1,6 +1,6 @@
 # Pixella Web Viewer
 
-Pixella からエクスポートした JSON ファイルをもとに、画像の検索・閲覧ができる静的 Web アプリです。
+[Pixella](https://github.com/kasu-me/Pixella) からエクスポートした JSON ファイルをもとに、画像の検索・閲覧ができる静的 Web アプリです。
 
 ## 動作環境
 

@@ -18,7 +18,7 @@ if ($filename === '' || strpbrk($filename, '/\\') !== false || strpos($filename,
 
 // 許可する元画像の拡張子
 $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-if (!in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif'], true)) {
     http_response_code(415);
     exit;
 }
@@ -63,6 +63,10 @@ switch ($info[2]) {
     case IMAGETYPE_PNG:
         $src_img = @imagecreatefrompng($real_src);
         break;
+    case IMAGETYPE_GIF:
+        // アニメーションGIFは imagecreatefromgif() が1フレーム目のみ読み込む
+        $src_img = @imagecreatefromgif($real_src);
+        break;
     default:
         http_response_code(415);
         exit;
@@ -88,8 +92,8 @@ if ($orig_w >= $orig_h) {
 
 $dst_img = imagecreatetruecolor($new_w, $new_h);
 
-// PNG の透過部分は白背景に合成
-if ($info[2] === IMAGETYPE_PNG) {
+// PNG / GIF の透過部分は白背景に合成
+if ($info[2] === IMAGETYPE_PNG || $info[2] === IMAGETYPE_GIF) {
     $white = imagecolorallocate($dst_img, 255, 255, 255);
     imagefill($dst_img, 0, 0, $white);
 }

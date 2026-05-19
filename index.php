@@ -8,6 +8,7 @@ define('DATA_FILE', __DIR__ . '/data/pixella_export.json');
 
 // URL 上の画像ディレクトリ（末尾スラッシュ必須）
 define('IMAGES_DIR',    'images/');
+define('THUMBNAIL_DIR', 'thumbnails/');
 // ファイルシステム上の画像ディレクトリ (filemtime 取得用)
 define('IMAGES_FS_DIR', __DIR__ . '/images/');
 
@@ -17,7 +18,7 @@ $groups_json = '[]';
 $error       = null;
 
 if (!file_exists(DATA_FILE)) {
-    $error = 'データファイルが見つかりません: data/pixella_export.json';
+    $error = 'データファイルが見つかりません: ' . DATA_FILE;
 } else {
     $raw = file_get_contents(DATA_FILE);
     if ($raw === false) {
@@ -804,6 +805,7 @@ const IMAGES     = <?= $images_json ?>;
 const ALL_TAGS   = <?= $tags_json ?>;
 const GROUPS     = <?= $groups_json ?>;
 const IMAGES_DIR = <?= json_encode(IMAGES_DIR, JSON_HEX_TAG) ?>;
+const THUMBNAIL_DIR  = <?= json_encode(THUMBNAIL_DIR, JSON_HEX_TAG) ?>;
 const PER_PAGE   = 100;
 
 // ── 高速参照マップ ───────────────────────────────────────────
@@ -1167,7 +1169,7 @@ function makeImageTile(img) {
   });
 
   const image = document.createElement('img');
-  image.src = IMAGES_DIR + encodeURIComponent(img.filename);
+  image.src = THUMBNAIL_DIR + encodeURIComponent(img.filename).replace(/\.[^./]+$/, '.jpg');
   image.alt = img.filename;
   image.loading = 'lazy';
   image.decoding = 'async';
@@ -1205,7 +1207,7 @@ function makeGroupTile(g) {
   // カバー画像
   if (g.cover) {
     const img = document.createElement('img');
-    img.src = IMAGES_DIR + encodeURIComponent(g.cover);
+    img.src = THUMBNAIL_DIR + encodeURIComponent(g.cover).replace(/\.[^./]+$/, '.jpg');
     img.alt = g.name;
     img.loading = 'lazy';
     img.decoding = 'async';

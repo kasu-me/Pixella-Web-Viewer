@@ -662,6 +662,20 @@ if (!file_exists(DATA_FILE)) {
     .lightbox-nav.prev { left: 8px; }
     .lightbox-nav.next { right: 8px; }
 
+    /* ── Lightbox spinner ───────────────────────────────── */
+    .lb-spinner {
+      display: none;
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(255,255,255,0.15);
+      border-top-color: rgba(255,255,255,0.85);
+      border-radius: 50%;
+      animation: lb-spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    .lb-spinner.visible { display: block; }
+    @keyframes lb-spin { to { transform: rotate(360deg); } }
+
     /* ── Sort bar ─────────────────────────────────────────── */
     .sort-bar {
       background: var(--surface);
@@ -784,6 +798,7 @@ if (!file_exists(DATA_FILE)) {
   <button id="lb-prev" class="lightbox-nav prev" aria-label="前の画像">‹</button>
   <button id="lb-next" class="lightbox-nav next" aria-label="次の画像">›</button>
   <div class="lightbox-inner">
+    <div id="lb-spinner" class="lb-spinner"></div>
     <img id="lb-image" src="" alt="">
     <div class="lb-meta">
       <p id="lb-filename"></p>
@@ -1312,13 +1327,16 @@ function closeLightbox() {
 }
 function updateLightbox() {
   if (lightboxIndex < 0 || lightboxIndex >= lightboxImages.length) return;
-  const img = lightboxImages[lightboxIndex];
+  const img     = lightboxImages[lightboxIndex];
+  const lbImg   = document.getElementById('lb-image');
+  const spinner = document.getElementById('lb-spinner');
 
-  const lbImg = document.getElementById('lb-image');
-  lbImg.src = IMAGES_DIR + encodeURIComponent(img.filename);
-  lbImg.alt = img.filename;
+  // 前の画像を隠してスピナーを表示
+  lbImg.style.display = 'none';
+  spinner.classList.add('visible');
+
+  // ファイル名・タグは先に更新
   document.getElementById('lb-filename').textContent = img.filename;
-
   const tagsEl = document.getElementById('lb-tags');
   tagsEl.innerHTML = '';
   (img.tags || []).forEach(tag => {
@@ -1334,6 +1352,16 @@ function updateLightbox() {
 
   document.getElementById('lb-prev').disabled = lightboxIndex === 0;
   document.getElementById('lb-next').disabled = lightboxIndex === lightboxImages.length - 1;
+
+  // 画像読み込み完了 / エラーでスピナーを消して画像を表示
+  const onFinish = () => {
+    spinner.classList.remove('visible');
+    lbImg.style.display = '';
+  };
+  lbImg.onload  = onFinish;
+  lbImg.onerror = onFinish;
+  lbImg.alt = img.filename;
+  lbImg.src = IMAGES_DIR + encodeURIComponent(img.filename);
 }
 
 // ── イベントリスナー ──────────────────────────────────────────

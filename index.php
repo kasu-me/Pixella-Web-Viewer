@@ -715,7 +715,7 @@ if (!file_exists(DATA_FILE)) {
       font-size: 0.9rem;
     }
   </style>
-  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="icon" href="<?= htmlspecialchars(FAVICON_FILE, ENT_QUOTES, 'UTF-8') ?>" type="image/x-icon">
 </head>
 <body>
 

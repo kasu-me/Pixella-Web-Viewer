@@ -798,7 +798,6 @@ const IMAGES     = <?= $images_json ?>;
 const ALL_TAGS   = <?= $tags_json ?>;
 const GROUPS     = <?= $groups_json ?>;
 const IMAGES_DIR = <?= json_encode(IMAGES_DIR, JSON_HEX_TAG) ?>;
-const THUMBNAIL_DIR  = <?= json_encode(THUMBNAIL_DIR, JSON_HEX_TAG) ?>;
 const PER_PAGE   = 100;
 
 // ── 高速参照マップ ───────────────────────────────────────────
@@ -1162,7 +1161,7 @@ function makeImageTile(img) {
   });
 
   const image = document.createElement('img');
-  image.src = THUMBNAIL_DIR + encodeURIComponent(img.filename).replace(/\.[^./]+$/, '.jpg');
+  image.src = 'thumbnail.php?f=' + encodeURIComponent(img.filename);
   image.alt = img.filename;
   image.loading = 'lazy';
   image.decoding = 'async';
@@ -1200,7 +1199,7 @@ function makeGroupTile(g) {
   // カバー画像
   if (g.cover) {
     const img = document.createElement('img');
-    img.src = THUMBNAIL_DIR + encodeURIComponent(g.cover).replace(/\.[^./]+$/, '.jpg');
+    img.src = 'thumbnail.php?f=' + encodeURIComponent(g.cover);
     img.alt = g.name;
     img.loading = 'lazy';
     img.decoding = 'async';

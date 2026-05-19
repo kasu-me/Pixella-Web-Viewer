@@ -92,7 +92,7 @@ if (!file_exists(DATA_FILE)) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixella Web Viewer</title>
+  <title>Pixella Web Viewer<?php if (defined('PIXELLA_TITLE_SUFFIX')) { echo ' - ' . htmlspecialchars(PIXELLA_TITLE_SUFFIX, ENT_QUOTES, 'UTF-8'); } ?></title>
   <style>
     /* ── Variables: dark (default) ──────────────────────── */
     :root {

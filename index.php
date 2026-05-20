@@ -252,6 +252,11 @@ if (!file_exists(DATA_FILE)) {
       color: var(--text);
       font-size: 0.85rem;
       font-weight: 600;
+	  & a{
+		color: var(--text);
+		text-decoration: none;
+		&:hover { text-decoration: underline; }
+	  }
     }
 
     /* ── Group tags bar ──────────────────────────────────── */
@@ -1093,6 +1098,15 @@ function renderHeader() {
     document.getElementById('bc-group-name').textContent = g ? g.name : '不明なグループ';
     bc.classList.add('visible');
     sa.classList.add('hidden');
+	fetch('title_provider.php?id=' + encodeURIComponent(g.cover))
+		.then(r => r.ok ? r.text() : '')
+		.catch(() => '')
+		.then(title => {
+		const trimmed = title.trim();
+		if(trimmed!=""){
+			document.getElementById('bc-group-name').innerHTML = trimmed;
+		}
+	});
     // グループタグを表示
     gtb.innerHTML = '';
     if (g && g.tags && g.tags.length) {
@@ -1403,17 +1417,20 @@ function updateLightbox() {
   const titleEl = document.getElementById('lb-title');
   titleEl.textContent = '';
   titleEl.style.display = 'none';
-  const fetchImgId = img.id;
-  fetch('title_provider.php?id=' + encodeURIComponent(img.filename))
-    .then(r => r.ok ? r.text() : '')
-    .catch(() => '')
-    .then(title => {
-      const trimmed = title.trim();
-      if (lightboxImages[lightboxIndex]?.id === fetchImgId && trimmed) {
-        titleEl.innerHTML = trimmed;
-        titleEl.style.display = '';
-      }
-    });
+  // グループの場合はタイトルを表示しない (グループ名はパンくずに表示されているため)
+  if(img.groupId===null){
+	const fetchImgId = img.id;
+	fetch('title_provider.php?id=' + encodeURIComponent(img.filename))
+		.then(r => r.ok ? r.text() : '')
+		.catch(() => '')
+		.then(title => {
+		const trimmed = title.trim();
+		if (lightboxImages[lightboxIndex]?.id === fetchImgId && trimmed) {
+			titleEl.innerHTML = trimmed;
+			titleEl.style.display = '';
+		}
+		});
+  }
 
   const tagsEl = document.getElementById('lb-tags');
   tagsEl.innerHTML = '';

@@ -21,3 +21,13 @@ define('IMAGES_FS_DIR',     __DIR__ . '/images/');
 
 // ファイルシステム上のサムネイルディレクトリ
 define('THUMBNAILS_FS_DIR', __DIR__ . '/thumbnails/');
+
+// グループ内画像のデフォルトソート順
+// 'same'          : 一覧と同じ（デフォルト）
+// 'mtime_asc'     : 更新時刻 昇順
+// 'mtime_desc'    : 更新時刻 降順
+// 'ctime_asc'     : 追加時刻 昇順
+// 'ctime_desc'    : 追加時刻 降順
+// 'filename_asc'  : ファイル名 昇順
+// 'filename_desc' : ファイル名 降順
+define('GROUP_SORT_DEFAULT', 'same');

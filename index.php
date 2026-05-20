@@ -831,6 +831,7 @@ const ALL_TAGS   = <?= $tags_json ?>;
 const GROUPS     = <?= $groups_json ?>;
 const IMAGES_DIR = <?= json_encode(IMAGES_DIR, JSON_HEX_TAG) ?>;
 const PER_PAGE   = 100;
+const GROUP_SORT_DEFAULT = <?= json_encode(defined('GROUP_SORT_DEFAULT') ? GROUP_SORT_DEFAULT : 'same', JSON_HEX_TAG) ?>;
 
 // ── 高速参照マップ ───────────────────────────────────────────
 const tagColorMap  = {};   // タグ名 → カラー
@@ -855,6 +856,31 @@ let sortKey        = 'mtime'; // 'mtime' | 'ctime' | 'filename'
 let sortDir        = 'desc';  // 'asc' | 'desc'
 let groupSortKey   = 'mtime'; // グループビュー専用ソートキー (URL保存しない)
 let groupSortDir   = 'desc';  // グループビュー専用ソート方向 (URL保存しない)
+
+// config の GROUP_SORT_DEFAULT に基づいてグループソートの初期値を設定する
+function initGroupSort() {
+  if (GROUP_SORT_DEFAULT === 'same') {
+    groupSortKey = sortKey;
+    groupSortDir = sortDir;
+    return;
+  }
+  // 'mtime_asc', 'ctime_desc', 'filename_asc' など「キー_方向」形式
+  const validKeys = ['mtime', 'ctime', 'filename'];
+  const validDirs = ['asc', 'desc'];
+  const sep = GROUP_SORT_DEFAULT.lastIndexOf('_');
+  if (sep > 0) {
+    const cfgKey = GROUP_SORT_DEFAULT.slice(0, sep);
+    const cfgDir = GROUP_SORT_DEFAULT.slice(sep + 1);
+    if (validKeys.includes(cfgKey) && validDirs.includes(cfgDir)) {
+      groupSortKey = cfgKey;
+      groupSortDir = cfgDir;
+      return;
+    }
+  }
+  // 不正な値はフォールバック: 一覧と同じ
+  groupSortKey = sortKey;
+  groupSortDir = sortDir;
+}
 
 // 現在表示中のアイテム (image|group オブジェクト)
 let displayItems  = [];
@@ -914,8 +940,8 @@ function readURL() {
   sortKey   = ['mtime', 'ctime', 'filename'].includes(p.get('sort')) ? p.get('sort') : 'mtime';
   sortDir   = p.get('sortdir') === 'asc' ? 'asc' : 'desc';
   openImgId = p.has('imgid') ? (parseInt(p.get('imgid')) || null) : null;
-  // グループビューで直接ロードされた場合、グループソートをホームソートに初期化
-  if (viewMode === 'group') { groupSortKey = sortKey; groupSortDir = sortDir; }
+  // グループビューで直接ロードされた場合、グループソートをconfig値で初期化
+  if (viewMode === 'group') { initGroupSort(); }
 }
 
 function writeURL(push = true) {
@@ -1238,8 +1264,9 @@ function makeGroupTile(g) {
     viewMode       = 'group';
     currentGroupId = g.id;
     currentPage    = 1;
-    groupSortKey   = sortKey;  // グループを開くたびにホームソートを初期値として引き継ぐ
+    groupSortKey   = sortKey;  // まずホームソートを基準にした上で config を適用
     groupSortDir   = sortDir;
+    initGroupSort();  // GROUP_SORT_DEFAULT が 'same' 以外なら上書き
     writeURL();
     render();
     window.scrollTo({ top: 0, behavior: 'instant' });

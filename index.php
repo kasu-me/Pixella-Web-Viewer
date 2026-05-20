@@ -628,6 +628,22 @@ if (!file_exists(DATA_FILE)) {
       color: #ddd;
       border: 1px solid rgba(255,255,255,0.15);
     }
+    #lb-title {
+      color: rgba(255,255,255,0.9);
+      font-size: 1rem;
+      font-weight: 500;
+      max-width: 88vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+	  &:empty { display: none; }
+	  & a{
+		color: rgba(255,255,255,0.9);
+		text-decoration: none;
+		&:hover { text-decoration: underline; }
+	  }
+    }
 
     .lightbox-close {
       position: fixed;
@@ -801,6 +817,7 @@ if (!file_exists(DATA_FILE)) {
     <div id="lb-spinner" class="lb-spinner"></div>
     <img id="lb-image" src="" alt="">
     <div class="lb-meta">
+      <p id="lb-title"></p>
       <p id="lb-filename"></p>
       <div id="lb-tags"></div>
     </div>
@@ -836,6 +853,8 @@ let searchMode     = 'and';   // 'and' | 'or'
 let currentPage    = 1;
 let sortKey        = 'mtime'; // 'mtime' | 'ctime' | 'filename'
 let sortDir        = 'desc';  // 'asc' | 'desc'
+let groupSortKey   = 'mtime'; // グループビュー専用ソートキー (URL保存しない)
+let groupSortDir   = 'desc';  // グループビュー専用ソート方向 (URL保存しない)
 
 // 現在表示中のアイテム (image|group オブジェクト)
 let displayItems  = [];
@@ -895,6 +914,8 @@ function readURL() {
   sortKey   = ['mtime', 'ctime', 'filename'].includes(p.get('sort')) ? p.get('sort') : 'mtime';
   sortDir   = p.get('sortdir') === 'asc' ? 'asc' : 'desc';
   openImgId = p.has('imgid') ? (parseInt(p.get('imgid')) || null) : null;
+  // グループビューで直接ロードされた場合、グループソートをホームソートに初期化
+  if (viewMode === 'group') { groupSortKey = sortKey; groupSortDir = sortDir; }
 }
 
 function writeURL(push = true) {
@@ -916,22 +937,31 @@ function writeURL(push = true) {
 }
 
 // ── ソートキー取得 ────────────────────────────────────────────
-function getSortValue(item) {
+function getSortValue(item, key) {
   // グループの場合は代表ファイル (先頭) を使う
   const base = (item._type === 'group')
     ? { mtime: item.mtime, ctime: item.ctime, filename: imageById[item.imageIds?.[0]]?.filename ?? '' }
     : item;
-  if (sortKey === 'filename') return (base.filename ?? '').toLowerCase();
-  if (sortKey === 'ctime')    return base.ctime  ?? 0;
+  if (key === 'filename') return base.filename ?? '';
+  if (key === 'ctime')    return base.ctime  ?? 0;
   return base.mtime ?? 0; // 'mtime'
 }
 
-function applySortToList(list) {
+// ファイル名の自然順比較 (file_2 < file_10 など)
+function naturalCompare(a, b) {
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function applySortToList(list, key, dir) {
   list.sort((a, b) => {
-    const ka = getSortValue(a);
-    const kb = getSortValue(b);
-    if (ka < kb) return sortDir === 'asc' ? -1 : 1;
-    if (ka > kb) return sortDir === 'asc' ?  1 : -1;
+    const ka = getSortValue(a, key);
+    const kb = getSortValue(b, key);
+    if (key === 'filename') {
+      const cmp = naturalCompare(ka, kb);
+      return dir === 'asc' ? cmp : -cmp;
+    }
+    if (ka < kb) return dir === 'asc' ? -1 : 1;
+    if (ka > kb) return dir === 'asc' ?  1 : -1;
     return 0;
   });
 }
@@ -944,7 +974,7 @@ function buildDisplayItems() {
     if (!g) { displayItems = []; lightboxImages = []; return; }
     displayItems  = g.imageIds.map(id => imageById[id]).filter(Boolean);
     lightboxImages = displayItems.slice();
-    applySortToList(displayItems);
+    applySortToList(displayItems, groupSortKey, groupSortDir);
     lightboxImages = displayItems.slice();
     return;
   }
@@ -972,8 +1002,8 @@ function buildDisplayItems() {
     lightboxImages = matchedUngrouped.slice();
   }
 
-  applySortToList(displayItems);
-  applySortToList(lightboxImages);
+  applySortToList(displayItems, sortKey, sortDir);
+  applySortToList(lightboxImages, sortKey, sortDir);
 }
 
 // ── メインレンダー ────────────────────────────────────────────
@@ -1019,9 +1049,11 @@ function addTagAndGoHome(tag) {
 
 // ── ソートコントロール ────────────────────────────────────────
 function renderSortControls() {
-  document.getElementById('sort-key').value = sortKey;
+  const activeKey = viewMode === 'group' ? groupSortKey : sortKey;
+  const activeDir = viewMode === 'group' ? groupSortDir : sortDir;
+  document.getElementById('sort-key').value = activeKey;
   const btn = document.getElementById('sort-dir');
-  btn.textContent = sortDir === 'asc' ? '↑ 昇順' : '↓ 降順';
+  btn.textContent = activeDir === 'asc' ? '↑ 昇順' : '↓ 降順';
 }
 
 // ── ヘッダ / パンくず ─────────────────────────────────────────
@@ -1206,6 +1238,8 @@ function makeGroupTile(g) {
     viewMode       = 'group';
     currentGroupId = g.id;
     currentPage    = 1;
+    groupSortKey   = sortKey;  // グループを開くたびにホームソートを初期値として引き継ぐ
+    groupSortDir   = sortDir;
     writeURL();
     render();
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -1335,8 +1369,25 @@ function updateLightbox() {
   lbImg.style.display = 'none';
   spinner.classList.add('visible');
 
-  // ファイル名・タグは先に更新
+  // ファイル名・タグ・タイトルは先に更新
   document.getElementById('lb-filename').textContent = img.filename;
+
+  // タイトルエリアをクリアしてから非同期取得
+  const titleEl = document.getElementById('lb-title');
+  titleEl.textContent = '';
+  titleEl.style.display = 'none';
+  const fetchImgId = img.id;
+  fetch('title_provider.php?id=' + encodeURIComponent(img.filename))
+    .then(r => r.ok ? r.text() : '')
+    .catch(() => '')
+    .then(title => {
+      const trimmed = title.trim();
+      if (lightboxImages[lightboxIndex]?.id === fetchImgId && trimmed) {
+        titleEl.innerHTML = trimmed;
+        titleEl.style.display = '';
+      }
+    });
+
   const tagsEl = document.getElementById('lb-tags');
   tagsEl.innerHTML = '';
   (img.tags || []).forEach(tag => {
@@ -1379,10 +1430,13 @@ document.getElementById('tag-filter-input').addEventListener('input', renderAvai
 
 // ソート
 document.getElementById('sort-key').addEventListener('change', e => {
-  sortKey = e.target.value; currentPage = 1; writeURL(); render();
+  if (viewMode === 'group') { groupSortKey = e.target.value; } else { sortKey = e.target.value; }
+  currentPage = 1; writeURL(); render();
 });
 document.getElementById('sort-dir').addEventListener('click', () => {
-  sortDir = sortDir === 'asc' ? 'desc' : 'asc'; currentPage = 1; writeURL(); render();
+  if (viewMode === 'group') { groupSortDir = groupSortDir === 'asc' ? 'desc' : 'asc'; }
+  else { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; }
+  currentPage = 1; writeURL(); render();
 });
 
 // パンくず / 戻る

@@ -1171,6 +1171,7 @@ function renderAvailableTags() {
       if (!selectedTags.includes(t.name)) {
         selectedTags.push(t.name);
         currentPage = 1;
+		document.getElementById('tag-filter-input').value = '';
         writeURL();
         render();
       }

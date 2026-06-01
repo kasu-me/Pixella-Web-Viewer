@@ -983,6 +983,16 @@ function naturalCompare(a, b) {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
 }
 
+// タグ名の配列を「色コード → タグ名」の順でソートする（色なしは末尾）
+function sortTagsByColor(tags) {
+  return [...tags].sort((a, b) => {
+    const ca = tagColorMap[a] || '~';
+    const cb = tagColorMap[b] || '~';
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    return a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : 0;
+  });
+}
+
 function applySortToList(list, key, dir) {
   list.sort((a, b) => {
     const ka = getSortValue(a, key);
@@ -1110,7 +1120,7 @@ function renderHeader() {
     // グループタグを表示
     gtb.innerHTML = '';
     if (g && g.tags && g.tags.length) {
-      g.tags.forEach(tag => {
+      sortTagsByColor(g.tags).forEach(tag => {
         const chip = document.createElement('span');
         chip.className = 'chip available';
         chip.textContent = tag;
@@ -1259,7 +1269,7 @@ function makeImageTile(img) {
   if (tags.length) {
     const overlay = document.createElement('div');
     overlay.className = 'tag-overlay';
-    tags.slice(0, 6).forEach(tag => {
+    sortTagsByColor(tags).slice(0, 6).forEach(tag => {
       const span = document.createElement('span');
       span.className = 'tag-label';
       span.textContent = tag;
@@ -1325,7 +1335,7 @@ function makeGroupTile(g) {
     item.classList.add('has-tags');
     const overlay = document.createElement('div');
     overlay.className = 'tag-overlay';
-    g.tags.slice(0, 6).forEach(tag => {
+    sortTagsByColor(g.tags).slice(0, 6).forEach(tag => {
       const span = document.createElement('span');
       span.className = 'tag-label';
       span.textContent = tag;
@@ -1435,7 +1445,7 @@ function updateLightbox() {
 
   const tagsEl = document.getElementById('lb-tags');
   tagsEl.innerHTML = '';
-  (img.tags || []).forEach(tag => {
+  sortTagsByColor(img.tags || []).forEach(tag => {
     const chip = document.createElement('span');
     chip.className = 'chip';
     chip.style.cursor = 'pointer';

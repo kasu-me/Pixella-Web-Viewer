@@ -562,6 +562,10 @@ if (!file_exists(DATA_FILE)) {
       padding: 24px 16px 36px;
       flex-wrap: wrap;
     }
+    .pagination-top {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+    }
     .pagination button {
       padding: 7px 13px;
       background: var(--surface);
@@ -807,10 +811,13 @@ if (!file_exists(DATA_FILE)) {
   <button id="sort-dir" class="sort-dir-btn" aria-label="昇順/降順切り替え">↓ 降順</button>
 </div>
 
+<!-- 上部ページネーション -->
+<div id="pagination-top" class="pagination pagination-top"></div>
+
 <!-- 画像グリッド -->
 <div id="image-grid" class="grid"></div>
 
-<!-- ページネーション -->
+<!-- 下部ページネーション -->
 <div id="pagination" class="pagination"></div>
 
 <!-- ライトボックス -->
@@ -1349,8 +1356,7 @@ function makeGroupTile(g) {
 }
 
 // ── ページネーション ──────────────────────────────────────────
-function renderPagination(totalPages) {
-  const pag = document.getElementById('pagination');
+function fillPagination(pag, totalPages) {
   pag.innerHTML = '';
   if (totalPages <= 1) return;
 
@@ -1396,6 +1402,11 @@ function renderPagination(totalPages) {
 
   pag.appendChild(makeBtn('›', currentPage + 1, currentPage === totalPages));
   pag.appendChild(makeBtn('»', totalPages,       currentPage === totalPages));
+}
+
+function renderPagination(totalPages) {
+  fillPagination(document.getElementById('pagination-top'), totalPages);
+  fillPagination(document.getElementById('pagination'), totalPages);
 }
 
 // ── ライトボックス ────────────────────────────────────────────

@@ -975,14 +975,28 @@ function writeURL(push = true) {
 }
 
 // ── ソートキー取得 ────────────────────────────────────────────
-function getSortValue(item, key) {
-  // グループの場合は代表ファイル (先頭) を使う
-  const base = (item._type === 'group')
-    ? { mtime: item.mtime, ctime: item.ctime, filename: imageById[item.imageIds?.[0]]?.filename ?? '' }
-    : item;
-  if (key === 'filename') return base.filename ?? '';
-  if (key === 'ctime')    return base.ctime  ?? 0;
-  return base.mtime ?? 0; // 'mtime'
+function getSortValue(item, key, dir) {
+  if (item._type !== 'group') {
+    if (key === 'filename') return item.filename ?? '';
+    if (key === 'ctime')    return item.ctime  ?? 0;
+    return item.mtime ?? 0;
+  }
+  // グループ: Pixella と同様に全画像の中から降順→max / 昇順→min を使う
+  const ids = item.imageIds || [];
+  if (!ids.length) return key === 'filename' ? '' : 0;
+  if (key === 'filename') {
+    const fnames = ids.map(id => imageById[id]?.filename ?? '');
+    return fnames.reduce((best, v) => {
+      const cmp = naturalCompare(v, best);
+      return dir === 'desc' ? (cmp > 0 ? v : best) : (cmp < 0 ? v : best);
+    });
+  }
+  const vals = ids.map(id => {
+    const img = imageById[id];
+    if (!img) return 0;
+    return (key === 'ctime' ? img.ctime : img.mtime) ?? 0;
+  });
+  return dir === 'desc' ? Math.max(...vals) : Math.min(...vals);
 }
 
 // ファイル名の自然順比較 (file_2 < file_10 など)
@@ -1002,8 +1016,8 @@ function sortTagsByColor(tags) {
 
 function applySortToList(list, key, dir) {
   list.sort((a, b) => {
-    const ka = getSortValue(a, key);
-    const kb = getSortValue(b, key);
+    const ka = getSortValue(a, key, dir);
+    const kb = getSortValue(b, key, dir);
     if (key === 'filename') {
       const cmp = naturalCompare(ka, kb);
       return dir === 'asc' ? cmp : -cmp;

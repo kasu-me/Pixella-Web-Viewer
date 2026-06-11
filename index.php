@@ -43,6 +43,7 @@ if (!file_exists(DATA_FILE)) {
                     'tags'     => array_values($img['tags'] ?? []),
                     'mtime'    => $mtime,
                     'ctime'    => isset($img['ctime']) ? (float)$img['ctime'] : null,
+                    'rating'   => isset($img['rating']) ? (int)$img['rating'] : 0,
                 ];
             }, $data['images'] ?? []));
 
@@ -77,6 +78,7 @@ if (!file_exists(DATA_FILE)) {
                     'imageIds' => array_values(array_map('intval', $g['image_ids'] ?? [])),
                     'mtime'    => $mtime,
                     'ctime'    => $ctime,
+                    'rating'   => isset($g['rating']) ? (int)$g['rating'] : 0,
                 ];
             }, $data['groups'] ?? []));
 
@@ -401,6 +403,90 @@ if (!file_exists(DATA_FILE)) {
       flex-shrink: 0;
     }
     .chip .remove-btn:hover { opacity: 1; }
+
+    /* ── Rating filter ───────────────────────────────────── */
+    .rating-filter-row {
+      gap: 10px;
+    }
+    .rating-filter-label {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .rating-enable-btn {
+      padding: 5px 12px;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.82rem;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      flex-shrink: 0;
+    }
+    .rating-enable-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .rating-enable-btn.active {
+      background: #f5b301;
+      border-color: #d99a00;
+      color: #1a1a1a;
+    }
+    .rating-op-toggle {
+      display: flex;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .rating-op-toggle button {
+      padding: 5px 12px;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      font-size: 0.95rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .rating-op-toggle button + button { border-left: 1px solid var(--border); }
+    .rating-op-toggle button.active { background: var(--accent); color: #fff; }
+    .rating-stars {
+      display: flex;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+    .rating-stars .star {
+      font-size: 1.25rem;
+      line-height: 1;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.1s;
+    }
+    .rating-stars .star.on { color: #f5b301; }
+    .rating-stars .star.hov { color: #ffcb3d; }
+
+    /* レーティングバッジ (タイル右上) */
+    .rating-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(0,0,0,0.55);
+      color: #f5b301;
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+      z-index: 2;
+    }
+    /* グループタイルは右上に枚数バッジがあるためその下に配置 */
+    .grid-item.group-tile .rating-badge { top: 34px; }
+    /* ライトボックス内レーティング */
+    #lb-rating {
+      color: #f5b301;
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+      min-height: 1.1rem;
+    }
+    #lb-rating:empty { display: none; }
 
     /* ── Info bar ─────────────────────────────────────────── */
     .info-bar {
@@ -795,6 +881,16 @@ if (!file_exists(DATA_FILE)) {
     <div class="available-tags-header">利用可能なタグ</div>
     <div id="available-tags-list"></div>
   </div>
+  <div class="search-row rating-filter-row">
+    <span class="rating-filter-label">レーティング:</span>
+    <button id="rating-enable" class="rating-enable-btn" title="レーティングで絞り込み">絞り込み</button>
+    <div class="rating-op-toggle" id="rating-op">
+      <button data-op="gte" class="active" title="指定した星以上">≧</button>
+      <button data-op="eq" title="指定した星と一致">=</button>
+      <button data-op="lte" title="指定した星以下">≦</button>
+    </div>
+    <div id="rating-stars" class="rating-stars" aria-label="レーティング星数"></div>
+  </div>
 </div>
 
 <!-- 件数表示 -->
@@ -831,6 +927,7 @@ if (!file_exists(DATA_FILE)) {
     <div class="lb-meta">
       <p id="lb-title"></p>
       <p id="lb-filename"></p>
+      <div id="lb-rating"></div>
       <div id="lb-tags"></div>
     </div>
   </div>
@@ -866,6 +963,9 @@ let searchMode     = 'and';   // 'and' | 'or'
 let currentPage    = 1;
 let sortKey        = 'mtime'; // 'mtime' | 'ctime' | 'filename'
 let sortDir        = 'desc';  // 'asc' | 'desc'
+let ratingEnabled  = false;   // レーティング絞り込みのオン/オフ
+let ratingOp       = 'gte';   // 'gte' | 'eq' | 'lte'
+let ratingValue    = 0;       // 0〜5
 let groupSortKey   = 'mtime'; // グループビュー専用ソートキー (URL保存しない)
 let groupSortDir   = 'desc';  // グループビュー専用ソート方向 (URL保存しない)
 
@@ -951,6 +1051,9 @@ function readURL() {
   currentPage = Math.max(1, parseInt(p.get('page')) || 1);
   sortKey   = ['mtime', 'ctime', 'filename'].includes(p.get('sort')) ? p.get('sort') : 'mtime';
   sortDir   = p.get('sortdir') === 'asc' ? 'asc' : 'desc';
+  ratingEnabled = p.get('rfilter') === '1';
+  ratingOp  = ['gte', 'eq', 'lte'].includes(p.get('rop')) ? p.get('rop') : 'gte';
+  ratingValue = Math.max(0, Math.min(5, parseInt(p.get('rval')) || 0));
   openImgId = p.has('imgid') ? (parseInt(p.get('imgid')) || null) : null;
   // グループビューで直接ロードされた場合、グループソートをconfig値で初期化
   if (viewMode === 'group') { initGroupSort(); }
@@ -963,6 +1066,11 @@ function writeURL(push = true) {
   } else {
     if (selectedTags.length) p.set('tags', selectedTags.join(','));
     if (searchMode !== 'and') p.set('mode', searchMode);
+    if (ratingEnabled) {
+      p.set('rfilter', '1');
+      if (ratingOp !== 'gte') p.set('rop', ratingOp);
+      if (ratingValue > 0)    p.set('rval', String(ratingValue));
+    }
   }
   if (currentPage > 1) p.set('page', String(currentPage));
   if (sortKey !== 'mtime')  p.set('sort',    sortKey);
@@ -1042,11 +1150,21 @@ function buildDisplayItems() {
   }
 
   // ホームビュー: グループなし画像 + グループ
-  const ungrouped = IMAGES.filter(img => !groupedImageIds.has(img.id));
+  let ungrouped = IMAGES.filter(img => !groupedImageIds.has(img.id));
+
+  // レーティング絞り込み: 画像・グループとも自身の rating で判定する
+  const matchesRating = item => {
+    if (!ratingEnabled) return true;
+    const r = item.rating || 0;
+    if (ratingOp === 'gte') return r >= ratingValue;
+    if (ratingOp === 'lte') return r <= ratingValue;
+    return r === ratingValue;
+  };
+  if (ratingEnabled) ungrouped = ungrouped.filter(matchesRating);
 
   if (!selectedTags.length) {
-    // フィルタなし: 全グループ + 全グループなし画像
-    const groups = GROUPS.slice();
+    // タグフィルタなし: 全グループ + 全グループなし画像（レーティング絞り込みを適用）
+    const groups = ratingEnabled ? GROUPS.filter(matchesRating) : GROUPS.slice();
     displayItems  = [...groups.map(g => ({ _type: 'group', ...g })),
                       ...ungrouped.map(img => ({ _type: 'image', ...img }))];
     lightboxImages = ungrouped.slice();
@@ -1056,7 +1174,7 @@ function buildDisplayItems() {
       return selectedTags.some(t => tags.includes(t));
     };
 
-    const matchedGroups    = GROUPS.filter(g => matchesTags(g.tags));
+    const matchedGroups    = GROUPS.filter(g => matchesTags(g.tags) && matchesRating(g));
     const matchedUngrouped = ungrouped.filter(img => matchesTags(img.tags));
 
     displayItems  = [...matchedGroups.map(g => ({ _type: 'group', ...g })),
@@ -1188,6 +1306,47 @@ function renderSearchArea() {
   document.getElementById('btn-and').classList.toggle('active', searchMode === 'and');
   document.getElementById('btn-or').classList.toggle('active', searchMode === 'or');
   renderAvailableTags();
+  renderRatingFilter();
+}
+
+// ── レーティング絞り込み UI ───────────────────────────────────
+function renderRatingFilter() {
+  document.getElementById('rating-enable').classList.toggle('active', ratingEnabled);
+  document.querySelectorAll('#rating-op button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.op === ratingOp);
+  });
+  renderRatingStars(ratingValue);
+}
+
+function renderRatingStars(activeCount) {
+  const wrap = document.getElementById('rating-stars');
+  wrap.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    const star = document.createElement('span');
+    star.className = 'star' + (i <= activeCount ? ' on' : '');
+    star.textContent = i <= activeCount ? '★' : '☆';
+    star.dataset.value = String(i);
+    star.title = i + ' つ星';
+    star.addEventListener('click', () => {
+      // 同じ星を再クリックで 0 にリセット
+      ratingValue = (ratingValue === i) ? 0 : i;
+      ratingEnabled = true;  // 星操作で自動的に絞り込みを有効化
+      currentPage = 1;
+      writeURL();
+      render();
+    });
+    star.addEventListener('mouseenter', () => {
+      wrap.querySelectorAll('.star').forEach((s, idx) => {
+        s.classList.toggle('hov', idx < i);
+        s.textContent = idx < i ? '★' : (s.classList.contains('on') ? '★' : '☆');
+      });
+    });
+    star.addEventListener('mouseleave', () => {
+      wrap.querySelectorAll('.star').forEach(s => s.classList.remove('hov'));
+      renderRatingStars(ratingValue);
+    });
+    wrap.appendChild(star);
+  }
 }
 
 function renderAvailableTags() {
@@ -1234,7 +1393,8 @@ function renderInfoBar(count, totalPages) {
   const bar = document.getElementById('info-bar');
   if (viewMode === 'group') {
     const g = groupById[currentGroupId];
-    bar.textContent = `⊞ ${g ? g.name : ''} — ${count.toLocaleString()} 枚 — ${currentPage} / ${totalPages} ページ`;
+    const stars = (g && g.rating > 0) ? ' — ' + '★'.repeat(g.rating) : '';
+    bar.textContent = `⊞ ${g ? g.name : ''} — ${count.toLocaleString()} 枚${stars} — ${currentPage} / ${totalPages} ページ`;
   } else {
     const filter = selectedTags.length
       ? `"${selectedTags.join(' ' + searchMode.toUpperCase() + ' ')}" でフィルタ中 — ` : '';
@@ -1285,6 +1445,15 @@ function makeImageTile(img) {
   image.loading = 'lazy';
   image.decoding = 'async';
   item.appendChild(image);
+
+  // レーティングバッジ (右上)
+  if (img.rating && img.rating > 0) {
+    const badge = document.createElement('div');
+    badge.className = 'rating-badge';
+    badge.textContent = '★'.repeat(img.rating);
+    badge.title = img.rating + ' つ星';
+    item.appendChild(badge);
+  }
 
   const tags = img.tags || [];
   if (tags.length) {
@@ -1344,6 +1513,15 @@ function makeGroupTile(g) {
   cnt.className = 'group-count';
   cnt.textContent = g.imageIds.length + ' 枚';
   item.appendChild(cnt);
+
+  // レーティングバッジ (枚数バッジの下)
+  if (g.rating && g.rating > 0) {
+    const rbadge = document.createElement('div');
+    rbadge.className = 'rating-badge';
+    rbadge.textContent = '★'.repeat(g.rating);
+    rbadge.title = g.rating + ' つ星';
+    item.appendChild(rbadge);
+  }
 
   // グループ名 (下部)
   const namebar = document.createElement('div');
@@ -1468,6 +1646,10 @@ function updateLightbox() {
 		});
   }
 
+  // レーティング表示
+  const ratingEl = document.getElementById('lb-rating');
+  ratingEl.textContent = (img.rating && img.rating > 0) ? '★'.repeat(img.rating) : '';
+
   const tagsEl = document.getElementById('lb-tags');
   tagsEl.innerHTML = '';
   sortTagsByColor(img.tags || []).forEach(tag => {
@@ -1507,6 +1689,19 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   selectedTags = []; currentPage = 1; writeURL(); render();
 });
 document.getElementById('tag-filter-input').addEventListener('input', renderAvailableTags);
+
+// レーティング絞り込み
+document.getElementById('rating-enable').addEventListener('click', () => {
+  ratingEnabled = !ratingEnabled;
+  currentPage = 1; writeURL(); render();
+});
+document.querySelectorAll('#rating-op button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    ratingOp = btn.dataset.op;
+    if (ratingEnabled) { currentPage = 1; writeURL(); }
+    render();
+  });
+});
 
 // ソート
 document.getElementById('sort-key').addEventListener('change', e => {

@@ -697,7 +697,7 @@ if (!file_exists(DATA_FILE)) {
     }
     .lightbox-inner img {
       max-width: 88vw;
-      max-height: 78vh;
+	  max-height: calc(100dvh - 10em);
       object-fit: contain;
       border-radius: 4px;
       display: block;

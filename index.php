@@ -764,6 +764,7 @@ if (!file_exists(DATA_FILE)) {
       color: #fff;
       font-size: 1.8rem;
       padding: 16px 10px;
+      padding-bottom: 26px;
       border-radius: 6px;
       transition: background 0.15s;
       line-height: 1;

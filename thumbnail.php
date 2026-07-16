@@ -18,7 +18,7 @@ if ($filename === '' || strpbrk($filename, '/\\') !== false || strpos($filename,
 
 // 許可する元画像の拡張子
 $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif'], true)) {
+if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
     http_response_code(415);
     exit;
 }
@@ -67,6 +67,15 @@ switch ($info[2]) {
         // アニメーションGIFは imagecreatefromgif() が1フレーム目のみ読み込む
         $src_img = @imagecreatefromgif($real_src);
         break;
+    case IMAGETYPE_WEBP:
+        // GD が WebP 対応でビルドされていない環境では 415 を返す
+        $src_img = function_exists('imagecreatefromwebp')
+            ? @imagecreatefromwebp($real_src) : false;
+        if ($src_img === false && !function_exists('imagecreatefromwebp')) {
+            http_response_code(415);
+            exit;
+        }
+        break;
     default:
         http_response_code(415);
         exit;
@@ -92,8 +101,8 @@ if ($orig_w >= $orig_h) {
 
 $dst_img = imagecreatetruecolor($new_w, $new_h);
 
-// PNG / GIF の透過部分は白背景に合成
-if ($info[2] === IMAGETYPE_PNG || $info[2] === IMAGETYPE_GIF) {
+// PNG / GIF / WebP の透過部分は白背景に合成
+if (in_array($info[2], [IMAGETYPE_PNG, IMAGETYPE_GIF, IMAGETYPE_WEBP], true)) {
     $white = imagecolorallocate($dst_img, 255, 255, 255);
     imagefill($dst_img, 0, 0, $white);
 }

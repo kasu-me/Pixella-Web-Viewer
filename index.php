@@ -21,13 +21,11 @@ if (!file_exists(DATA_FILE)) {
         if ($data === null) {
             $error = 'JSON のパースに失敗しました。ファイルが正しい形式か確認してください。';
         } else {
-            // id → filename / ctime のルックアップテーブル
+            // id → filename のルックアップテーブル
             $id_to_filename = [];
-            $id_to_ctime    = [];
             foreach ($data['images'] ?? [] as $img) {
                 if (isset($img['id'], $img['path'])) {
                     $id_to_filename[(int)$img['id']] = basename($img['path']);
-                    $id_to_ctime[(int)$img['id']]    = isset($img['ctime']) ? (float)$img['ctime'] : null;
                 }
             }
 
@@ -54,8 +52,9 @@ if (!file_exists(DATA_FILE)) {
                 ];
             }, $data['tags'] ?? []));
 
-            // グループ: カバー画像ファイル名を解決、先頭画像の mtime/ctime を付与
-            $groups = array_values(array_map(function ($g) use ($id_to_filename, $id_to_ctime) {
+            // グループ: カバー画像ファイル名を解決
+            // (ソート用の mtime/ctime はフロント側が全メンバー画像から計算するため持たせない)
+            $groups = array_values(array_map(function ($g) use ($id_to_filename) {
                 $cover = null;
                 if (isset($g['cover_image_id']) && $g['cover_image_id'] !== null) {
                     $cover = $id_to_filename[(int)$g['cover_image_id']] ?? null;
@@ -64,20 +63,12 @@ if (!file_exists(DATA_FILE)) {
                     $first_id = (int)($g['image_ids'][0]);
                     $cover = $id_to_filename[$first_id] ?? null;
                 }
-                // 代表ファイル (先頭) の mtime / ctime
-                $rep_id    = !empty($g['image_ids']) ? (int)($g['image_ids'][0]) : null;
-                $rep_fname = $rep_id !== null ? ($id_to_filename[$rep_id] ?? null) : null;
-                $mtime     = ($rep_fname !== null && $rep_fname !== '')
-                    ? (@filemtime(IMAGES_FS_DIR . $rep_fname) ?: null) : null;
-                $ctime     = $rep_id !== null ? ($id_to_ctime[$rep_id] ?? null) : null;
                 return [
                     'id'       => (int)($g['id'] ?? 0),
                     'name'     => (string)($g['name'] ?? ''),
                     'cover'    => $cover,
                     'tags'     => array_values($g['tags'] ?? []),
                     'imageIds' => array_values(array_map('intval', $g['image_ids'] ?? [])),
-                    'mtime'    => $mtime,
-                    'ctime'    => $ctime,
                     'rating'   => isset($g['rating']) ? (int)$g['rating'] : 0,
                 ];
             }, $data['groups'] ?? []));
@@ -1045,8 +1036,10 @@ function readURL() {
     viewMode       = 'home';
     currentGroupId = null;
   }
+  // URLSearchParams.get() は既にデコード済み。decodeURIComponent を重ねると
+  // 「%」を含むタグ名で URIError になるため二重デコードしない。
   selectedTags = p.has('tags')
-    ? p.get('tags').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean)
+    ? p.get('tags').split(',').map(s => s.trim()).filter(Boolean)
     : [];
   searchMode  = p.get('mode') === 'or' ? 'or' : 'and';
   currentPage = Math.max(1, parseInt(p.get('page')) || 1);
@@ -1144,7 +1137,6 @@ function buildDisplayItems() {
     const g = groupById[currentGroupId];
     if (!g) { displayItems = []; lightboxImages = []; return; }
     displayItems  = g.imageIds.map(id => imageById[id]).filter(Boolean);
-    lightboxImages = displayItems.slice();
     applySortToList(displayItems, groupSortKey, groupSortDir);
     lightboxImages = displayItems.slice();
     return;
@@ -1248,15 +1240,19 @@ function renderHeader() {
     document.getElementById('bc-group-name').textContent = g ? g.name : '不明なグループ';
     bc.classList.add('visible');
     sa.classList.add('hidden');
-	fetch('title_provider.php?id=' + encodeURIComponent(g.cover))
-		.then(r => r.ok ? r.text() : '')
-		.catch(() => '')
-		.then(title => {
-		const trimmed = title.trim();
-		if(trimmed!=""){
-			document.getElementById('bc-group-name').innerHTML = trimmed;
-		}
-	});
+    // 任意フック: title_provider.php があればグループ見出しをその内容で置き換える
+    // （g が未定義 = 不明なグループ ID の場合はスキップ）
+    if (g && g.cover) {
+      fetch('title_provider.php?id=' + encodeURIComponent(g.cover))
+        .then(r => r.ok ? r.text() : '')
+        .catch(() => '')
+        .then(title => {
+          const trimmed = title.trim();
+          if (trimmed !== '') {
+            document.getElementById('bc-group-name').innerHTML = trimmed;
+          }
+        });
+    }
     // グループタグを表示
     gtb.innerHTML = '';
     if (g && g.tags && g.tags.length) {
@@ -1480,9 +1476,7 @@ function makeGroupTile(g) {
     viewMode       = 'group';
     currentGroupId = g.id;
     currentPage    = 1;
-    groupSortKey   = sortKey;  // まずホームソートを基準にした上で config を適用
-    groupSortDir   = sortDir;
-    initGroupSort();  // GROUP_SORT_DEFAULT が 'same' 以外なら上書き
+    initGroupSort();  // GROUP_SORT_DEFAULT ('same' ならホームのソートを引き継ぐ)
     writeURL();
     render();
     window.scrollTo({ top: 0, behavior: 'instant' });

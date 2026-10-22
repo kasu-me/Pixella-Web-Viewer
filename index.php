@@ -42,6 +42,7 @@ if (!file_exists(DATA_FILE)) {
                     'mtime'    => $mtime,
                     'ctime'    => isset($img['ctime']) ? (float)$img['ctime'] : null,
                     'rating'   => isset($img['rating']) ? (int)$img['rating'] : 0,
+                    'memo'     => isset($img['memo']) ? (string)$img['memo'] : '',
                 ];
             }, $data['images'] ?? []));
 
@@ -70,6 +71,7 @@ if (!file_exists(DATA_FILE)) {
                     'tags'     => array_values($g['tags'] ?? []),
                     'imageIds' => array_values(array_map('intval', $g['image_ids'] ?? [])),
                     'rating'   => isset($g['rating']) ? (int)$g['rating'] : 0,
+                    'memo'     => isset($g['memo']) ? (string)$g['memo'] : '',
                 ];
             }, $data['groups'] ?? []));
 
@@ -478,6 +480,34 @@ if (!file_exists(DATA_FILE)) {
       min-height: 1.1rem;
     }
     #lb-rating:empty { display: none; }
+    /* ライトボックス内メモ (改行をそのまま表示) */
+    #lb-memo {
+      color: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.08);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      text-align: left;
+      max-width: min(88vw, 640px);
+      max-height: 6em;
+      overflow-y: auto;
+    }
+    #lb-memo:empty { display: none; }
+    /* グループ表示時のグループメモ */
+    .group-memo {
+      padding: 8px 24px;
+      color: var(--text);
+      background: var(--surface);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      border-bottom: 1px solid var(--border);
+    }
+    .group-memo:empty { display: none; }
 
     /* ── Info bar ─────────────────────────────────────────── */
     .info-bar {
@@ -887,6 +917,7 @@ if (!file_exists(DATA_FILE)) {
 
 <!-- 件数表示 -->
 <div id="info-bar" class="info-bar"></div>
+<div id="group-memo" class="group-memo"></div>
 
 <!-- ソートバー (ホーム・グループ両ビューで常時表示) -->
 <div id="sort-bar" class="sort-bar">
@@ -920,6 +951,7 @@ if (!file_exists(DATA_FILE)) {
       <p id="lb-title"></p>
       <p id="lb-filename"></p>
       <div id="lb-rating"></div>
+      <div id="lb-memo"></div>
       <div id="lb-tags"></div>
     </div>
   </div>
@@ -1388,6 +1420,9 @@ function makeChip(label, selected, onClick) {
 // ── 情報バー ─────────────────────────────────────────────────
 function renderInfoBar(count, totalPages) {
   const bar = document.getElementById('info-bar');
+  // グループメモはグループ表示中のみ (空なら CSS の :empty で非表示)
+  document.getElementById('group-memo').textContent =
+    (viewMode === 'group' && groupById[currentGroupId]) ? (groupById[currentGroupId].memo || '') : '';
   if (viewMode === 'group') {
     const g = groupById[currentGroupId];
     const stars = (g && g.rating > 0) ? ' — ' + '★'.repeat(g.rating) : '';
@@ -1644,6 +1679,9 @@ function updateLightbox() {
   // レーティング表示
   const ratingEl = document.getElementById('lb-rating');
   ratingEl.textContent = (img.rating && img.rating > 0) ? '★'.repeat(img.rating) : '';
+
+  // メモ表示 (textContent でエスケープ、改行は CSS の pre-wrap で反映)
+  document.getElementById('lb-memo').textContent = img.memo || '';
 
   const tagsEl = document.getElementById('lb-tags');
   tagsEl.innerHTML = '';
